@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 from typing import Any, Optional
 
 from .parser import DataParser, DepopItem
@@ -16,6 +17,74 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 
+# Stealth script to avoid detection
+STEALTH_SCRIPT = """
+// Overwrite navigator.webdriver to be undefined
+Object.defineProperty(navigator, 'webdriver', {
+    get: () => undefined
+});
+
+// Mock plugins array
+Object.defineProperty(navigator, 'plugins', {
+    get: () => {
+        const pluginArray = [
+            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+            { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
+        ];
+        pluginArray.item = (i) => pluginArray[i];
+        pluginArray.namedItem = (name) => pluginArray.find(p => p.name === name);
+        pluginArray.refresh = () => {};
+        return pluginArray;
+    }
+});
+
+// Mock languages
+Object.defineProperty(navigator, 'languages', {
+    get: () => ['en-US', 'en']
+});
+
+// Mock hardware concurrency
+Object.defineProperty(navigator, 'hardwareConcurrency', {
+    get: () => 8
+});
+
+// Mock device memory
+Object.defineProperty(navigator, 'deviceMemory', {
+    get: () => 8
+});
+
+// Mock permissions API if available
+if (window.navigator && window.navigator.permissions && window.navigator.permissions.query) {
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+            Promise.resolve({ state: Notification.permission }) :
+            originalQuery(parameters)
+    );
+}
+
+// Remove automation indicators from chrome object
+if (window.chrome) {
+    window.chrome.runtime = undefined;
+}
+
+// Mock WebGL vendor and renderer if available
+if (typeof WebGLRenderingContext !== 'undefined') {
+    const getParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) {
+            return 'Intel Inc.';
+        }
+        if (parameter === 37446) {
+            return 'Intel Iris OpenGL Engine';
+        }
+        return getParameter.call(this, parameter);
+    };
+}
+"""
+
+
 class BrowserScraper:
     """
     Browser-based scraper using Playwright for JS-rendered content.
@@ -24,13 +93,23 @@ class BrowserScraper:
     when content requires JavaScript to render.
     """
 
-    def __init__(self, headless: bool = True, timeout: float = 30000):
+    def __init__(
+        self,
+        headless: bool = True,
+        timeout: float = 30000,
+        min_delay: float = 0.5,
+        max_delay: float = 2.0,
+        block_resources: bool = True,
+    ):
         """
         Initialize the browser scraper.
 
         Args:
             headless: Whether to run browser in headless mode.
             timeout: Page load timeout in milliseconds.
+            min_delay: Minimum random delay between actions in seconds.
+            max_delay: Maximum random delay between actions in seconds.
+            block_resources: Whether to block images/fonts for faster scraping.
         """
         if not PLAYWRIGHT_AVAILABLE:
             raise ImportError(
@@ -40,13 +119,23 @@ class BrowserScraper:
 
         self.headless = headless
         self.timeout = timeout
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.block_resources = block_resources
         self._browser: Optional[Browser] = None
         self._playwright: Any = None
 
     async def __aenter__(self) -> "BrowserScraper":
         """Async context manager entry."""
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        self._browser = await self._playwright.chromium.launch(
+            headless=self.headless,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        )
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -56,22 +145,71 @@ class BrowserScraper:
         if self._playwright:
             await self._playwright.stop()
 
+    async def _random_delay(self) -> None:
+        """Add a random delay between actions to appear more human-like."""
+        delay = random.uniform(self.min_delay, self.max_delay)
+        await asyncio.sleep(delay)
+
     async def _create_page(self) -> Page:
-        """Create a new browser page with appropriate settings."""
+        """Create a new browser page with stealth settings."""
         if not self._browser:
             raise RuntimeError("Browser not initialized. Use async context manager.")
 
         context = await self._browser.new_context(
-            viewport={"width": 1280, "height": 800},
+            viewport={"width": 1920, "height": 1080},
             user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             ),
+            locale="en-US",
+            timezone_id="America/New_York",
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Windows"',
+            },
         )
+
         page = await context.new_page()
+
+        # Apply stealth script to avoid detection
+        await page.add_init_script(STEALTH_SCRIPT)
+
+        # Optionally block unnecessary resources to speed up scraping
+        if self.block_resources:
+            await page.route(
+                "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf}",
+                lambda route: route.abort(),
+            )
+
         page.set_default_timeout(self.timeout)
         return page
+
+    async def _handle_cookie_consent(self, page: Page) -> None:
+        """Handle cookie consent dialogs if present."""
+        try:
+            # Common cookie consent button selectors
+            selectors = [
+                "button[data-testid='accept-cookies']",
+                "button:has-text('Accept')",
+                "button:has-text('Accept All')",
+                "button:has-text('Accept Cookies')",
+                "[id*='accept'][class*='cookie']",
+                "[class*='cookie'] button:has-text('Accept')",
+            ]
+            for selector in selectors:
+                try:
+                    button = page.locator(selector).first
+                    if await button.is_visible(timeout=2000):
+                        await button.click()
+                        await self._random_delay()
+                        logger.debug("Clicked cookie consent button: %s", selector)
+                        return
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug("No cookie consent found or handled: %s", e)
 
     async def search_sold_items(
         self,
@@ -108,16 +246,20 @@ class BrowserScraper:
 
         try:
             await page.goto(url)
+            await self._random_delay()
+
+            # Handle cookie consent if present
+            await self._handle_cookie_consent(page)
 
             # Wait for products to load
             await page.wait_for_selector(
                 "[data-testid='product'], .styles_productCard__"
             )
 
-            # Scroll to load more items
+            # Scroll to load more items with random delays
             for _ in range(max_scroll):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await asyncio.sleep(1)  # Wait for content to load
+                await self._random_delay()
 
             # Extract product data
             items = await self._extract_items_from_page(page)
@@ -164,13 +306,18 @@ class BrowserScraper:
 
         try:
             await page.goto(url)
+            await self._random_delay()
+
+            # Handle cookie consent if present
+            await self._handle_cookie_consent(page)
+
             await page.wait_for_selector(
                 "[data-testid='product'], .styles_productCard__"
             )
 
             for _ in range(max_scroll):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await asyncio.sleep(1)
+                await self._random_delay()
 
             items = await self._extract_items_from_page(page)
             return items
@@ -196,6 +343,11 @@ class BrowserScraper:
 
         try:
             await page.goto(url)
+            await self._random_delay()
+
+            # Handle cookie consent if present
+            await self._handle_cookie_consent(page)
+
             await page.wait_for_selector("[data-testid='product-details']")
 
             # Extract product data from page

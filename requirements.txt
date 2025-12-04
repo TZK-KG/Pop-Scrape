@@ -15,4 +15,4 @@ pandas>=2.0.0
 selectolax>=0.3.17
 
 # Additional dependencies
-pillow>=10.0.0  # Image handling for GUI
+pillow>=10.3.0  # Image handling for GUI

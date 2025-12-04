@@ -1,9 +1,12 @@
 """Playwright-based browser scraping fallback for Depop."""
 
 import asyncio
+import logging
 from typing import Any, Optional
 
 from .parser import DataParser, DepopItem
+
+logger = logging.getLogger(__name__)
 
 # Playwright is imported lazily to avoid errors if not installed
 try:
@@ -121,7 +124,7 @@ class BrowserScraper:
             return items
 
         except Exception as e:
-            print(f"Browser scraping error: {e}")
+            logger.error("Browser scraping error: %s", e)
             return []
         finally:
             await page.close()
@@ -173,7 +176,7 @@ class BrowserScraper:
             return items
 
         except Exception as e:
-            print(f"Browser scraping error: {e}")
+            logger.error("Browser scraping error: %s", e)
             return []
         finally:
             await page.close()
@@ -232,7 +235,7 @@ class BrowserScraper:
             )
 
         except Exception as e:
-            print(f"Failed to get product details: {e}")
+            logger.error("Failed to get product details: %s", e)
             return None
         finally:
             await page.close()
@@ -310,7 +313,7 @@ class BrowserScraper:
                 )
                 items.append(item)
             except Exception as e:
-                print(f"Failed to create item: {e}")
+                logger.warning("Failed to create item: %s", e)
 
         return items
 

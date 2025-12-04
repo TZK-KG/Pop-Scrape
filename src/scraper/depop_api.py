@@ -1,6 +1,7 @@
 """Depop API-based scraping functionality."""
 
 import asyncio
+import logging
 import time
 from typing import Any, Optional
 from urllib.parse import urlencode
@@ -8,6 +9,8 @@ from urllib.parse import urlencode
 import httpx
 
 from .parser import DataParser, DepopItem
+
+logger = logging.getLogger(__name__)
 
 
 class DepopAPI:
@@ -89,13 +92,13 @@ class DepopAPI:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error: {e.response.status_code} - {e.response.text[:200]}")
+            logger.error("HTTP error: %d - %s", e.response.status_code, e.response.text[:200])
             return None
         except httpx.RequestError as e:
-            print(f"Request error: {e}")
+            logger.error("Request error: %s", e)
             return None
         except Exception as e:
-            print(f"Unexpected error: {e}")
+            logger.error("Unexpected error: %s", e)
             return None
 
     async def search_sold_items(

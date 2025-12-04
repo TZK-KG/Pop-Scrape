@@ -1,8 +1,11 @@
 """Data extraction and parsing for Depop scraping."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -153,7 +156,7 @@ class DataParser:
                 is_sold=data.get("status") == "sold" or "soldAt" in data,
             )
         except (KeyError, TypeError, ValueError) as e:
-            print(f"Warning: Failed to parse product: {e}")
+            logger.warning("Failed to parse product: %s", e)
             return None
 
     @staticmethod
@@ -211,7 +214,7 @@ class DataParser:
                 is_sold=is_sold,
             )
         except Exception as e:
-            print(f"Warning: Failed to parse HTML product: {e}")
+            logger.warning("Failed to parse HTML product: %s", e)
             return None
 
     @staticmethod

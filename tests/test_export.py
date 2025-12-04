@@ -1,6 +1,7 @@
 """Tests for the CSV export module."""
 
 import csv
+import os
 import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -40,7 +41,6 @@ class TestCSVExporter:
 
         with TemporaryDirectory() as tmpdir:
             # Change to temp dir for auto filename
-            import os
             original_dir = os.getcwd()
             os.chdir(tmpdir)
 
@@ -57,7 +57,6 @@ class TestCSVExporter:
         data = [{"title": "Test", "price": 100.0}]
 
         with TemporaryDirectory() as tmpdir:
-            import os
             original_dir = os.getcwd()
             os.chdir(tmpdir)
 

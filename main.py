@@ -26,7 +26,7 @@ def is_tk_tcl_error(error_message: str) -> bool:
     """
     tk_indicators = ["libtk", "libtcl", "_tkinter"]
     error_lower = error_message.lower()
-    return any(indicator.lower() in error_lower for indicator in tk_indicators)
+    return any(indicator in error_lower for indicator in tk_indicators)
 
 
 def get_tk_installation_instructions() -> str:

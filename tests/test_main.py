@@ -11,41 +11,41 @@ class TestIsTkTclError:
     def test_libtk_error(self):
         """Test detection of libtk error."""
         error_msg = "libtk8.6.so: cannot open shared object file: No such file or directory"
-        assert is_tk_tcl_error(error_msg) is True
+        assert is_tk_tcl_error(error_msg)
 
     def test_libtcl_error(self):
         """Test detection of libtcl error."""
         error_msg = "libtcl8.6.so: cannot open shared object file: No such file or directory"
-        assert is_tk_tcl_error(error_msg) is True
+        assert is_tk_tcl_error(error_msg)
 
     def test_tkinter_error(self):
         """Test detection of _tkinter error."""
         error_msg = "No module named '_tkinter'"
-        assert is_tk_tcl_error(error_msg) is True
+        assert is_tk_tcl_error(error_msg)
 
     def test_case_insensitive_libtk(self):
         """Test case insensitive detection of libtk."""
         error_msg = "LIBTK8.6.so: cannot open shared object file"
-        assert is_tk_tcl_error(error_msg) is True
+        assert is_tk_tcl_error(error_msg)
 
     def test_case_insensitive_tkinter(self):
         """Test case insensitive detection of _tkinter."""
         error_msg = "No module named '_TKINTER'"
-        assert is_tk_tcl_error(error_msg) is True
+        assert is_tk_tcl_error(error_msg)
 
     def test_non_tk_error(self):
         """Test that non-Tk errors are not detected as Tk errors."""
         error_msg = "No module named 'customtkinter'"
-        assert is_tk_tcl_error(error_msg) is False
+        assert not is_tk_tcl_error(error_msg)
 
     def test_pip_package_error(self):
         """Test that pip package errors are not detected as Tk errors."""
         error_msg = "No module named 'pandas'"
-        assert is_tk_tcl_error(error_msg) is False
+        assert not is_tk_tcl_error(error_msg)
 
     def test_empty_error_message(self):
         """Test empty error message."""
-        assert is_tk_tcl_error("") is False
+        assert not is_tk_tcl_error("")
 
 
 class TestGetTkInstallationInstructions:

@@ -17,6 +17,7 @@ class TestBrowserScraperConfiguration:
         assert scraper.timeout == 30000
         assert scraper.min_delay == 0.5
         assert scraper.max_delay == 2.0
+        assert scraper.block_resources is True
 
     @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
     def test_custom_configuration(self):
@@ -26,11 +27,13 @@ class TestBrowserScraperConfiguration:
             timeout=60000,
             min_delay=1.0,
             max_delay=3.0,
+            block_resources=False,
         )
         assert scraper.headless is False
         assert scraper.timeout == 60000
         assert scraper.min_delay == 1.0
         assert scraper.max_delay == 3.0
+        assert scraper.block_resources is False
 
     def test_is_available(self):
         """Test is_available returns correct value."""
@@ -104,8 +107,31 @@ class TestBrowserScraperPageCreation:
         # Verify stealth script was added
         mock_page.add_init_script.assert_called_once_with(STEALTH_SCRIPT)
 
-        # Verify resource blocking was set up
+        # Verify resource blocking was set up (default is True)
         mock_page.route.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_page_without_resource_blocking(self):
+        """Test that resource blocking is skipped when disabled."""
+        scraper = BrowserScraper(block_resources=False)
+
+        mock_page = AsyncMock()
+        mock_page.add_init_script = AsyncMock()
+        mock_page.route = AsyncMock()
+        mock_page.set_default_timeout = MagicMock()
+
+        mock_context = AsyncMock()
+        mock_context.new_page = AsyncMock(return_value=mock_page)
+
+        mock_browser = AsyncMock()
+        mock_browser.new_context = AsyncMock(return_value=mock_context)
+
+        scraper._browser = mock_browser
+
+        await scraper._create_page()
+
+        # Verify resource blocking was NOT set up
+        mock_page.route.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_page_sets_viewport(self):

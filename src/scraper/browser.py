@@ -54,30 +54,34 @@ Object.defineProperty(navigator, 'deviceMemory', {
     get: () => 8
 });
 
-// Mock permissions API
-const originalQuery = window.navigator.permissions.query;
-window.navigator.permissions.query = (parameters) => (
-    parameters.name === 'notifications' ?
-        Promise.resolve({ state: Notification.permission }) :
-        originalQuery(parameters)
-);
+// Mock permissions API if available
+if (window.navigator && window.navigator.permissions && window.navigator.permissions.query) {
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+            Promise.resolve({ state: Notification.permission }) :
+            originalQuery(parameters)
+    );
+}
 
 // Remove automation indicators from chrome object
 if (window.chrome) {
     window.chrome.runtime = undefined;
 }
 
-// Mock WebGL vendor and renderer
-const getParameter = WebGLRenderingContext.prototype.getParameter;
-WebGLRenderingContext.prototype.getParameter = function(parameter) {
-    if (parameter === 37445) {
-        return 'Intel Inc.';
-    }
-    if (parameter === 37446) {
-        return 'Intel Iris OpenGL Engine';
-    }
-    return getParameter.call(this, parameter);
-};
+// Mock WebGL vendor and renderer if available
+if (typeof WebGLRenderingContext !== 'undefined') {
+    const getParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) {
+            return 'Intel Inc.';
+        }
+        if (parameter === 37446) {
+            return 'Intel Iris OpenGL Engine';
+        }
+        return getParameter.call(this, parameter);
+    };
+}
 """
 
 
@@ -95,6 +99,7 @@ class BrowserScraper:
         timeout: float = 30000,
         min_delay: float = 0.5,
         max_delay: float = 2.0,
+        block_resources: bool = True,
     ):
         """
         Initialize the browser scraper.
@@ -104,6 +109,7 @@ class BrowserScraper:
             timeout: Page load timeout in milliseconds.
             min_delay: Minimum random delay between actions in seconds.
             max_delay: Maximum random delay between actions in seconds.
+            block_resources: Whether to block images/fonts for faster scraping.
         """
         if not PLAYWRIGHT_AVAILABLE:
             raise ImportError(
@@ -115,6 +121,7 @@ class BrowserScraper:
         self.timeout = timeout
         self.min_delay = min_delay
         self.max_delay = max_delay
+        self.block_resources = block_resources
         self._browser: Optional[Browser] = None
         self._playwright: Any = None
 
@@ -169,11 +176,12 @@ class BrowserScraper:
         # Apply stealth script to avoid detection
         await page.add_init_script(STEALTH_SCRIPT)
 
-        # Block unnecessary resources to speed up scraping
-        await page.route(
-            "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf}",
-            lambda route: route.abort(),
-        )
+        # Optionally block unnecessary resources to speed up scraping
+        if self.block_resources:
+            await page.route(
+                "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,otf}",
+                lambda route: route.abort(),
+            )
 
         page.set_default_timeout(self.timeout)
         return page

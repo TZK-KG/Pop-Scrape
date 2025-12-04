@@ -98,9 +98,7 @@ class DepopAPI:
 
     async def __aenter__(self) -> "DepopAPI":
         """Async context manager entry."""
-        headers = self._get_rotated_headers()
         self._client = httpx.AsyncClient(
-            headers=headers,
             timeout=self.timeout,
             follow_redirects=True,
         )

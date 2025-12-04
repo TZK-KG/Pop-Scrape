@@ -1,0 +1,18 @@
+# Pop-Scrape Dependencies
+# Async HTTP client for API requests
+httpx>=0.25.0
+
+# Browser automation fallback for JS-rendered content
+playwright>=1.40.0
+
+# Modern GUI framework
+customtkinter>=5.2.0
+
+# Data handling, sorting, filtering, CSV export
+pandas>=2.0.0
+
+# Fast HTML parsing
+selectolax>=0.3.17
+
+# Additional dependencies
+pillow>=10.0.0  # Image handling for GUI
